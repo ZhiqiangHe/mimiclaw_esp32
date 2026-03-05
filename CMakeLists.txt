@@ -6,4 +6,5 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(mimiclaw)
 
 # Pre-flash a valid SPIFFS image so first boot does not need runtime formatting.
-spiffs_create_partition_image(spiffs spiffs_data FLASH_IN_PROJECT)
+# Disabled - will format SPIFFS at runtime instead
+# spiffs_create_partition_image(spiffs spiffs_data FLASH_IN_PROJECT)

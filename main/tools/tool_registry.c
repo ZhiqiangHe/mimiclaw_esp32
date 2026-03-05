@@ -1,9 +1,9 @@
 #include "tool_registry.h"
-#include "mimi_config.h"
 #include "tools/tool_web_search.h"
 #include "tools/tool_get_time.h"
 #include "tools/tool_files.h"
 #include "tools/tool_cron.h"
+#include "tools/tool_chassis.h"
 
 #include <string.h>
 #include "esp_log.h"
@@ -58,6 +58,9 @@ esp_err_t tool_registry_init(void)
     /* Register web_search */
     tool_web_search_init();
 
+    /* Register chassis */
+    tool_chassis_init();
+
     mimi_tool_t ws = {
         .name = "web_search",
         .description = "Search the web for current information. Use this when you need up-to-date facts, news, weather, or anything beyond your training data.",
@@ -84,10 +87,10 @@ esp_err_t tool_registry_init(void)
     /* Register read_file */
     mimi_tool_t rf = {
         .name = "read_file",
-        .description = "Read a file from SPIFFS storage. Path must start with " MIMI_SPIFFS_BASE "/.",
+        .description = "Read a file from SPIFFS storage. Path must start with /spiffs/.",
         .input_schema_json =
             "{\"type\":\"object\","
-            "\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"Absolute path starting with " MIMI_SPIFFS_BASE "/\"}},"
+            "\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"Absolute path starting with /spiffs/\"}},"
             "\"required\":[\"path\"]}",
         .execute = tool_read_file_execute,
     };
@@ -96,10 +99,10 @@ esp_err_t tool_registry_init(void)
     /* Register write_file */
     mimi_tool_t wf = {
         .name = "write_file",
-        .description = "Write or overwrite a file on SPIFFS storage. Path must start with " MIMI_SPIFFS_BASE "/.",
+        .description = "Write or overwrite a file on SPIFFS storage. Path must start with /spiffs/.",
         .input_schema_json =
             "{\"type\":\"object\","
-            "\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"Absolute path starting with " MIMI_SPIFFS_BASE "/\"},"
+            "\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"Absolute path starting with /spiffs/\"},"
             "\"content\":{\"type\":\"string\",\"description\":\"File content to write\"}},"
             "\"required\":[\"path\",\"content\"]}",
         .execute = tool_write_file_execute,
@@ -112,7 +115,7 @@ esp_err_t tool_registry_init(void)
         .description = "Find and replace text in a file on SPIFFS. Replaces first occurrence of old_string with new_string.",
         .input_schema_json =
             "{\"type\":\"object\","
-            "\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"Absolute path starting with " MIMI_SPIFFS_BASE "/\"},"
+            "\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"Absolute path starting with /spiffs/\"},"
             "\"old_string\":{\"type\":\"string\",\"description\":\"Text to find\"},"
             "\"new_string\":{\"type\":\"string\",\"description\":\"Replacement text\"}},"
             "\"required\":[\"path\",\"old_string\",\"new_string\"]}",
@@ -126,7 +129,7 @@ esp_err_t tool_registry_init(void)
         .description = "List files on SPIFFS storage, optionally filtered by path prefix.",
         .input_schema_json =
             "{\"type\":\"object\","
-            "\"properties\":{\"prefix\":{\"type\":\"string\",\"description\":\"Optional path prefix filter, e.g. " MIMI_SPIFFS_BASE "/memory/\"}},"
+            "\"properties\":{\"prefix\":{\"type\":\"string\",\"description\":\"Optional path prefix filter, e.g. /spiffs/memory/\"}},"
             "\"required\":[]}",
         .execute = tool_list_dir_execute,
     };
@@ -175,6 +178,21 @@ esp_err_t tool_registry_init(void)
         .execute = tool_cron_remove_execute,
     };
     register_tool(&cr);
+
+    /* Register chassis_control */
+    mimi_tool_t ch = {
+        .name = "chassis_control",
+        .description = "Control the robot chassis: move forward/backward, turn left/right, stop, dance, set light mode, or get battery level.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{"
+            "\"action\":{\"type\":\"string\",\"description\":\"Action to perform: move_forward, move_backward, turn_left, turn_right, stop, dance, set_light_mode, get_battery\"},"
+            "\"mode\":{\"type\":\"integer\",\"description\":\"Light mode (0-8) for set_light_mode action\"}"
+            "},"
+            "\"required\":[\"action\"]}",
+        .execute = tool_chassis_execute,
+    };
+    register_tool(&ch);
 
     build_tools_json();
 

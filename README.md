@@ -158,7 +158,7 @@ idf.py -p PORT flash monitor
 >
 > </details>
 
-### CLI Commands (via UART/COM port)
+### CLI Commands
 
 Connect via serial to configure or debug. **Config commands** let you change settings without recompiling — just plug in a USB cable anywhere.
 
@@ -190,47 +190,6 @@ mimi> heartbeat_trigger           # manually trigger a heartbeat check
 mimi> cron_start                  # start cron scheduler now
 mimi> restart                     # reboot
 ```
-
-### USB (JTAG) vs UART: Which Port for What
-
-Most ESP32-S3 dev boards expose **two USB-C ports**:
-
-| Port | Use for |
-|------|---------|
-| **USB** (JTAG) | `idf.py flash`, JTAG debugging |
-| **COM** (UART) | **REPL CLI**, serial console |
-
-> **REPL requires the UART (COM) port.** The USB (JTAG) port does not support interactive REPL input.
-
-<details>
-<summary>Port details & recommended workflow</summary>
-
-| Port | Label | Protocol |
-|------|-------|----------|
-| **USB** | USB / JTAG | Native USB Serial/JTAG |
-| **COM** | UART / COM | External UART bridge (CP2102/CH340) |
-
-The ESP-IDF console/REPL is configured to use UART by default (`CONFIG_ESP_CONSOLE_UART_DEFAULT=y`).
-
-**If you have both ports connected simultaneously:**
-
-- USB (JTAG) handles flash/download and provides secondary serial output
-- UART (COM) provides the primary interactive console for the REPL
-- macOS: both appear as `/dev/cu.usbmodem*` or `/dev/cu.usbserial-*` — run `ls /dev/cu.usb*` to identify
-- Linux: USB (JTAG) → `/dev/ttyACM0`, UART → `/dev/ttyUSB0`
-
-**Recommended workflow:**
-
-```bash
-# Flash via USB (JTAG) port
-idf.py -p /dev/cu.usbmodem11401 flash
-
-# Open REPL via UART (COM) port
-idf.py -p /dev/cu.usbserial-110 monitor
-# or use any serial terminal: screen, minicom, PuTTY at 115200 baud
-```
-
-</details>
 
 ## Memory
 
@@ -293,14 +252,6 @@ Technical details live in the `docs/` folder:
 ## Contributing
 
 Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** before opening issues or pull requests.
-
-## Contributors
-
-Thanks to everyone who has contributed to MimiClaw.
-
-<a href="https://github.com/memovai/mimiclaw/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=memovai/mimiclaw" alt="MimiClaw contributors" />
-</a>
 
 ## License
 

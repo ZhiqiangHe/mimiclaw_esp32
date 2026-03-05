@@ -47,6 +47,7 @@ build_test.sh
 build_and_integrate_qwen.sh
 verify_integration.sh
 
+
 # Reference repos
 nanobot/
 
@@ -59,3 +60,4 @@ nanobot/
 Thumbs.db
 references/
 .venv/
+.vscode/

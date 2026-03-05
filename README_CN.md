@@ -173,7 +173,7 @@ mimi> clear_proxy                    # 清除代理
 
 > **提示**：确保 ESP32-S3 和代理机器在同一局域网。Clash Verge 在「设置 → 允许局域网」中开启。
 
-### CLI 命令（通过 UART/COM 口连接）
+### CLI 命令
 
 通过串口连接即可配置和调试。**配置命令**让你无需重新编译就能修改设置 — 随时随地插上 USB 线就能改。
 
@@ -205,47 +205,6 @@ mimi> heartbeat_trigger           # 手动触发一次心跳检查
 mimi> cron_start                  # 立即启动 cron 调度器
 mimi> restart                     # 重启
 ```
-
-### USB (JTAG) 与 UART：哪个口做什么
-
-大多数 ESP32-S3 开发板有 **两个 USB-C 口**：
-
-| 端口 | 用途 |
-|------|------|
-| **USB**（JTAG） | `idf.py flash`、JTAG 调试 |
-| **COM**（UART） | **REPL 命令行**、串口控制台 |
-
-> **REPL 必须连接 UART（COM）口。** USB（JTAG）口不支持交互式 REPL 输入。
-
-<details>
-<summary>端口详情与推荐工作流</summary>
-
-| 端口 | 标注 | 协议 |
-|------|------|------|
-| **USB** | USB / JTAG | 原生 USB Serial/JTAG |
-| **COM** | UART / COM | 外置 UART 桥接芯片（CP2102/CH340） |
-
-ESP-IDF 控制台默认配置为 UART 输出（`CONFIG_ESP_CONSOLE_UART_DEFAULT=y`）。
-
-**同时连接两个口时：**
-
-- USB（JTAG）口负责烧录/下载，并提供辅助串口输出
-- UART（COM）口提供主要的交互式控制台，用于 REPL
-- macOS 下两个口都会显示为 `/dev/cu.usbmodem*` 或 `/dev/cu.usbserial-*`，用 `ls /dev/cu.usb*` 区分
-- Linux 下 USB（JTAG）通常是 `/dev/ttyACM0`，UART 通常是 `/dev/ttyUSB0`
-
-**推荐工作流：**
-
-```bash
-# 通过 USB（JTAG）口烧录
-idf.py -p /dev/cu.usbmodem11401 flash
-
-# 通过 UART（COM）口打开 REPL
-idf.py -p /dev/cu.usbserial-110 monitor
-# 或使用任意串口工具：screen、minicom、PuTTY，波特率 115200
-```
-
-</details>
 
 ## 记忆
 
@@ -308,14 +267,6 @@ MimiClaw 内置 cron 调度器，让 AI 可以自主安排任务。LLM 可以通
 ## 贡献
 
 提交 Issue 或 Pull Request 前，请先阅读 **[CONTRIBUTING.md](CONTRIBUTING.md)**。
-
-## 贡献者
-
-感谢所有为 MimiClaw 做出贡献的开发者。
-
-<a href="https://github.com/memovai/mimiclaw/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=memovai/mimiclaw" alt="MimiClaw contributors" />
-</a>
 
 ## 许可证
 

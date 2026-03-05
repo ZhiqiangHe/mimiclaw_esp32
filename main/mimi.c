@@ -24,7 +24,10 @@
 #include "tools/tool_registry.h"
 #include "cron/cron_service.h"
 #include "heartbeat/heartbeat.h"
+#include "buttons/button_driver.h"
+#include "imu/imu_manager.h"
 #include "skills/skill_loader.h"
+#include "ui/message_display.h"
 
 static const char *TAG = "mimi";
 
@@ -80,9 +83,9 @@ static void outbound_dispatch_task(void *arg)
                 ESP_LOGI(TAG, "Telegram send success for %s (%d bytes)", msg.chat_id, (int)strlen(msg.content));
             }
         } else if (strcmp(msg.channel, MIMI_CHAN_FEISHU) == 0) {
-            esp_err_t send_err = feishu_send_message(msg.chat_id, msg.content);
-            if (send_err != ESP_OK) {
-                ESP_LOGE(TAG, "Feishu send failed for %s: %s", msg.chat_id, esp_err_to_name(send_err));
+            esp_err_t feishu_err = feishu_send_message(msg.chat_id, msg.content);
+            if (feishu_err != ESP_OK) {
+                ESP_LOGE(TAG, "Feishu send failed for %s: %s", msg.chat_id, esp_err_to_name(feishu_err));
             } else {
                 ESP_LOGI(TAG, "Feishu send success for %s (%d bytes)", msg.chat_id, (int)strlen(msg.content));
             }
@@ -116,6 +119,11 @@ void app_main(void)
     ESP_LOGI(TAG, "PSRAM free:    %d bytes",
              (int)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 
+    /* Input */
+    button_Init();
+    imu_manager_init();
+    imu_manager_set_shake_callback(NULL);
+
     /* Phase 1: Core infrastructure */
     ESP_ERROR_CHECK(init_nvs());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -128,13 +136,16 @@ void app_main(void)
     ESP_ERROR_CHECK(session_mgr_init());
     ESP_ERROR_CHECK(wifi_manager_init());
     ESP_ERROR_CHECK(http_proxy_init());
-    ESP_ERROR_CHECK(telegram_bot_init());
+    /* ESP_ERROR_CHECK(telegram_bot_init()); */  /* Disabled - using Feishu instead */
     ESP_ERROR_CHECK(feishu_bot_init());
     ESP_ERROR_CHECK(llm_proxy_init());
     ESP_ERROR_CHECK(tool_registry_init());
     ESP_ERROR_CHECK(cron_service_init());
     ESP_ERROR_CHECK(heartbeat_init());
     ESP_ERROR_CHECK(agent_loop_init());
+    
+    /* Initialize LCD display */
+    message_display_init();
 
     /* Start Serial CLI first (works without WiFi) */
     ESP_ERROR_CHECK(serial_cli_init());
@@ -157,8 +168,10 @@ void app_main(void)
 
             /* Start network-dependent services */
             ESP_ERROR_CHECK(agent_loop_start());
-            ESP_ERROR_CHECK(telegram_bot_start());
-            ESP_ERROR_CHECK(feishu_bot_start());
+            /* ESP_ERROR_CHECK(telegram_bot_start()); */  /* Disabled - using Feishu instead */
+            if (feishu_bot_start() != ESP_OK) {
+                ESP_LOGW(TAG, "Feishu bot start failed, continuing without Feishu");
+            }
             cron_service_start();
             heartbeat_start();
             ESP_ERROR_CHECK(ws_server_start());

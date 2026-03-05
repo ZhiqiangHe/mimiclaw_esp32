@@ -121,54 +121,6 @@ static void resp_buf_free(resp_buf_t *rb)
     rb->cap = 0;
 }
 
-/* ── Chunked transfer encoding decoder ───────────────────────── */
-
-static void resp_buf_decode_chunked(resp_buf_t *rb)
-{
-    if (!rb->data || rb->len == 0) return;
-
-    /* Quick check: if body starts with '{' or '[', it's not chunked */
-    size_t i = 0;
-    while (i < rb->len && (rb->data[i] == ' ' || rb->data[i] == '\t')) i++;
-    if (i < rb->len && (rb->data[i] == '{' || rb->data[i] == '[')) return;
-
-    /* Try to decode chunked encoding in-place */
-    char *src = rb->data;
-    char *dst = rb->data;
-    char *end = rb->data + rb->len;
-
-    while (src < end) {
-        /* Parse hex chunk size */
-        char *line_end = strstr(src, "\r\n");
-        if (!line_end) break;
-
-        unsigned long chunk_size = strtoul(src, NULL, 16);
-        if (chunk_size == 0) break;  /* terminal chunk */
-
-        src = line_end + 2;  /* skip past \r\n after size */
-
-        if (src + chunk_size > end) {
-            /* Incomplete chunk, copy what we have */
-            size_t avail = end - src;
-            memmove(dst, src, avail);
-            dst += avail;
-            break;
-        }
-
-        memmove(dst, src, chunk_size);
-        dst += chunk_size;
-        src += chunk_size;
-
-        /* Skip trailing \r\n after chunk data */
-        if (src + 2 <= end && src[0] == '\r' && src[1] == '\n') {
-            src += 2;
-        }
-    }
-
-    rb->len = dst - rb->data;
-    rb->data[rb->len] = '\0';
-}
-
 /* ── HTTP event handler (for esp_http_client direct path) ─────── */
 
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
@@ -187,19 +139,46 @@ static bool provider_is_openai(void)
     return strcmp(s_provider, "openai") == 0;
 }
 
+static bool provider_is_zhipu(void)
+{
+    return strcmp(s_provider, "zhipu") == 0;
+}
+
+static bool provider_is_local(void)
+{
+    return strcmp(s_provider, "local") == 0;
+}
+
 static const char *llm_api_url(void)
 {
-    return provider_is_openai() ? MIMI_OPENAI_API_URL : MIMI_LLM_API_URL;
+    if (provider_is_openai()) {
+        return MIMI_OPENAI_API_URL;
+    } else if (provider_is_zhipu()) {
+        return "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+    } else if (provider_is_local()) {
+        return MIMI_LOCAL_API_URL;
+    }
+    return MIMI_LLM_API_URL;
 }
 
 static const char *llm_api_host(void)
 {
-    return provider_is_openai() ? "api.openai.com" : "api.anthropic.com";
+    if (provider_is_openai()) {
+        return "api.openai.com";
+    } else if (provider_is_zhipu()) {
+        return "open.bigmodel.cn";
+    } else if (provider_is_local()) {
+        return "172.20.30.46";
+    }
+    return "api.anthropic.com";
 }
 
 static const char *llm_api_path(void)
 {
-    return provider_is_openai() ? "/v1/chat/completions" : "/v1/messages";
+    if (provider_is_openai() || provider_is_zhipu() || provider_is_local()) {
+        return "/v1/chat/completions";
+    }
+    return "/v1/messages";
 }
 
 /* ── Init ─────────────────────────────────────────────────────── */
@@ -265,7 +244,7 @@ static esp_err_t llm_http_direct(const char *post_data, resp_buf_t *rb, int *out
 
     esp_http_client_set_method(client, HTTP_METHOD_POST);
     esp_http_client_set_header(client, "Content-Type", "application/json");
-    if (provider_is_openai()) {
+    if (provider_is_openai() || provider_is_zhipu() || provider_is_local()) {
         if (s_api_key[0]) {
             char auth[LLM_API_KEY_MAX_LEN + 16];
             snprintf(auth, sizeof(auth), "Bearer %s", s_api_key);
@@ -287,13 +266,14 @@ static esp_err_t llm_http_direct(const char *post_data, resp_buf_t *rb, int *out
 
 static esp_err_t llm_http_via_proxy(const char *post_data, resp_buf_t *rb, int *out_status)
 {
-    proxy_conn_t *conn = proxy_conn_open(llm_api_host(), 443, 30000);
+    int port = provider_is_local() ? 9994 : 443;
+    proxy_conn_t *conn = proxy_conn_open(llm_api_host(), port, 30000);
     if (!conn) return ESP_ERR_HTTP_CONNECT;
 
     int body_len = strlen(post_data);
     char header[1024];
     int hlen = 0;
-    if (provider_is_openai()) {
+    if (provider_is_openai() || provider_is_zhipu() || provider_is_local()) {
         hlen = snprintf(header, sizeof(header),
             "POST %s HTTP/1.1\r\n"
             "Host: %s\r\n"
@@ -345,9 +325,6 @@ static esp_err_t llm_http_via_proxy(const char *post_data, resp_buf_t *rb, int *
         rb->len = blen;
         rb->data[rb->len] = '\0';
     }
-
-    /* Decode chunked transfer encoding if present */
-    resp_buf_decode_chunked(rb);
 
     return ESP_OK;
 }
@@ -562,10 +539,11 @@ esp_err_t llm_chat_tools(const char *system_prompt,
     if (provider_is_openai()) {
         cJSON_AddNumberToObject(body, "max_completion_tokens", MIMI_LLM_MAX_TOKENS);
     } else {
+        /* zhipu and anthropic use max_tokens */
         cJSON_AddNumberToObject(body, "max_tokens", MIMI_LLM_MAX_TOKENS);
     }
 
-    if (provider_is_openai()) {
+    if (provider_is_openai() || provider_is_zhipu() || provider_is_local()) {
         cJSON *openai_msgs = convert_messages_openai(system_prompt, messages);
         cJSON_AddItemToObject(body, "messages", openai_msgs);
 
@@ -600,42 +578,71 @@ esp_err_t llm_chat_tools(const char *system_prompt,
              s_provider, s_model, (int)strlen(post_data));
     llm_log_payload("LLM tools request", post_data);
 
-    /* HTTP call */
+    /* HTTP call with retry mechanism */
+    int max_retries = 3;
+    int retry_delay_ms = 1000;
+    esp_err_t err = ESP_OK;
+    int status = 0;
+    cJSON *root = NULL;
     resp_buf_t rb;
-    if (resp_buf_init(&rb, MIMI_LLM_STREAM_BUF_SIZE) != ESP_OK) {
-        free(post_data);
-        return ESP_ERR_NO_MEM;
+
+    for (int retry = 0; retry < max_retries; retry++) {
+        if (retry > 0) {
+            ESP_LOGW(TAG, "LLM call failed, retrying... (attempt %d/%d)", retry + 1, max_retries);
+            vTaskDelay(pdMS_TO_TICKS(retry_delay_ms));
+        }
+
+        if (resp_buf_init(&rb, MIMI_LLM_STREAM_BUF_SIZE) != ESP_OK) {
+            free(post_data);
+            return ESP_ERR_NO_MEM;
+        }
+
+        status = 0;
+        err = llm_http_call(post_data, &rb, &status);
+
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
+            llm_log_payload("LLM tools partial response", rb.data);
+            resp_buf_free(&rb);
+            if (retry < max_retries - 1) {
+                continue;
+            }
+            free(post_data);
+            return err;
+        }
+
+        llm_log_payload("LLM tools raw response", rb.data);
+
+        if (status != 200) {
+            ESP_LOGE(TAG, "API error %d: %.500s", status, rb.data ? rb.data : "");
+            resp_buf_free(&rb);
+            if (retry < max_retries - 1) {
+                continue;
+            }
+            free(post_data);
+            return ESP_FAIL;
+        }
+
+        /* Parse full JSON response */
+        root = cJSON_Parse(rb.data);
+        resp_buf_free(&rb);
+
+        if (!root) {
+            ESP_LOGE(TAG, "Failed to parse API response JSON");
+            if (retry < max_retries - 1) {
+                continue;
+            }
+            free(post_data);
+            return ESP_FAIL;
+        }
+
+        /* Success - break out of retry loop */
+        break;
     }
 
-    int status = 0;
-    esp_err_t err = llm_http_call(post_data, &rb, &status);
     free(post_data);
 
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
-        llm_log_payload("LLM tools partial response", rb.data);
-        resp_buf_free(&rb);
-        return err;
-    }
-
-    llm_log_payload("LLM tools raw response", rb.data);
-
-    if (status != 200) {
-        ESP_LOGE(TAG, "API error %d: %.500s", status, rb.data ? rb.data : "");
-        resp_buf_free(&rb);
-        return ESP_FAIL;
-    }
-
-    /* Parse full JSON response */
-    cJSON *root = cJSON_Parse(rb.data);
-    resp_buf_free(&rb);
-
-    if (!root) {
-        ESP_LOGE(TAG, "Failed to parse API response JSON");
-        return ESP_FAIL;
-    }
-
-    if (provider_is_openai()) {
+    if (provider_is_openai() || provider_is_zhipu() || provider_is_local()) {
         cJSON *choices = cJSON_GetObjectItem(root, "choices");
         cJSON *choice0 = choices && cJSON_IsArray(choices) ? cJSON_GetArrayItem(choices, 0) : NULL;
         if (choice0) {

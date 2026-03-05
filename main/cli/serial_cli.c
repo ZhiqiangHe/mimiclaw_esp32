@@ -80,13 +80,6 @@ static struct {
     struct arg_end *end;
 } feishu_creds_args;
 
-/* --- feishu_send command --- */
-static struct {
-    struct arg_str *receive_id;
-    struct arg_str *text;
-    struct arg_end *end;
-} feishu_send_args;
-
 static int cmd_set_feishu_creds(int argc, char **argv)
 {
     int nerrors = arg_parse(argc, argv, (void **)&feishu_creds_args);
@@ -98,20 +91,6 @@ static int cmd_set_feishu_creds(int argc, char **argv)
                           feishu_creds_args.app_secret->sval[0]);
     printf("Feishu credentials saved.\n");
     return 0;
-}
-
-static int cmd_feishu_send(int argc, char **argv)
-{
-    int nerrors = arg_parse(argc, argv, (void **)&feishu_send_args);
-    if (nerrors != 0) {
-        arg_print_errors(stderr, feishu_send_args.end, argv[0]);
-        return 1;
-    }
-
-    esp_err_t err = feishu_send_message(feishu_send_args.receive_id->sval[0],
-                                        feishu_send_args.text->sval[0]);
-    printf("feishu_send status: %s\n", esp_err_to_name(err));
-    return (err == ESP_OK) ? 0 : 1;
 }
 
 /* --- set_api_key command --- */
@@ -322,7 +301,7 @@ static int cmd_skill_list(int argc, char **argv)
 
     size_t n = skill_loader_build_summary(buf, 4096);
     if (n == 0) {
-        printf("No skills found under " MIMI_SKILLS_PREFIX ".\n");
+        printf("No skills found under /spiffs/skills/.\n");
     } else {
         printf("=== Skills ===\n%s", buf);
     }
@@ -349,9 +328,9 @@ static bool build_skill_path(const char *name, char *out, size_t out_size)
     if (strchr(name, '/') != NULL || strchr(name, '\\') != NULL) return false;
 
     if (has_md_suffix(name)) {
-        snprintf(out, out_size, MIMI_SKILLS_PREFIX "%s", name);
+        snprintf(out, out_size, "/spiffs/skills/%s", name);
     } else {
-        snprintf(out, out_size, MIMI_SKILLS_PREFIX "%s.md", name);
+        snprintf(out, out_size, "/spiffs/skills/%s.md", name);
     }
     return true;
 }
@@ -417,9 +396,9 @@ static int cmd_skill_search(int argc, char **argv)
     }
 
     const char *keyword = skill_search_args.keyword->sval[0];
-    DIR *dir = opendir(MIMI_SPIFFS_BASE);
+    DIR *dir = opendir("/spiffs");
     if (!dir) {
-        printf("Cannot open " MIMI_SPIFFS_BASE ".\n");
+        printf("Cannot open /spiffs.\n");
         return 1;
     }
 
@@ -437,7 +416,7 @@ static int cmd_skill_search(int argc, char **argv)
         if (strcmp(name + name_len - 3, ".md") != 0) continue;
 
         char full_path[296];
-        snprintf(full_path, sizeof(full_path), MIMI_SPIFFS_BASE "/%s", name);
+        snprintf(full_path, sizeof(full_path), "/spiffs/%s", name);
 
         bool file_matched = contains_nocase(name, keyword);
         int matched_line = 0;
@@ -661,7 +640,7 @@ esp_err_t serial_cli_init(void)
     };
     esp_console_cmd_register(&tg_token_cmd);
 
-    /* set_feishu_creds */
+     /* set_feishu_creds */
     feishu_creds_args.app_id = arg_str1(NULL, NULL, "<app_id>", "Feishu App ID");
     feishu_creds_args.app_secret = arg_str1(NULL, NULL, "<app_secret>", "Feishu App Secret");
     feishu_creds_args.end = arg_end(2);
@@ -672,18 +651,6 @@ esp_err_t serial_cli_init(void)
         .argtable = &feishu_creds_args,
     };
     esp_console_cmd_register(&feishu_creds_cmd);
-
-    /* feishu_send */
-    feishu_send_args.receive_id = arg_str1(NULL, NULL, "<receive_id>", "Feishu open_id/chat_id");
-    feishu_send_args.text = arg_str1(NULL, NULL, "<text>", "Text message (quote if contains spaces)");
-    feishu_send_args.end = arg_end(2);
-    esp_console_cmd_t feishu_send_cmd = {
-        .command = "feishu_send",
-        .help = "Send Feishu text: feishu_send <open_id|chat_id> \"hello\"",
-        .func = &cmd_feishu_send,
-        .argtable = &feishu_send_args,
-    };
-    esp_console_cmd_register(&feishu_send_cmd);
 
     /* set_api_key */
     api_key_args.key = arg_str1(NULL, NULL, "<key>", "LLM API key");
@@ -721,7 +688,7 @@ esp_err_t serial_cli_init(void)
     /* skill_list */
     esp_console_cmd_t skill_list_cmd = {
         .command = "skill_list",
-        .help = "List installed skills from " MIMI_SKILLS_PREFIX,
+        .help = "List installed skills from /spiffs/skills/",
         .func = &cmd_skill_list,
     };
     esp_console_cmd_register(&skill_list_cmd);

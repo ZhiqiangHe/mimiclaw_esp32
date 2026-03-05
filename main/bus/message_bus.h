@@ -14,7 +14,7 @@
 /* Message types on the bus */
 typedef struct {
     char channel[16];       /* "telegram", "websocket", "cli" */
-    char chat_id[96];       /* Telegram/Feishu chat_id, open_id, or WS client id */
+    char chat_id[32];       /* Telegram chat_id or WS client id */
     char *content;          /* Heap-allocated message text (caller must free) */
 } mimi_msg_t;
 

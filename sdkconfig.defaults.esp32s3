@@ -39,3 +39,7 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 # Prevents device hang when no USB host is connected (issue #60)
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
+
+# LVGL Configuration for Chinese font support
+CONFIG_LV_FONT_FMT_TXT_LARGE=y
+CONFIG_LV_USE_FONT_COMPRESSED=y

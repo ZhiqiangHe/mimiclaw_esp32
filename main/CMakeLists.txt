@@ -1,6 +1,11 @@
 idf_component_register(
     SRCS
         "mimi.c"
+        "buttons/multi_button.c"
+        "buttons/button_driver.c"
+        "imu/I2C_Driver.c"
+        "imu/QMI8658.c"
+        "imu/imu_manager.c"
         "bus/message_bus.c"
         "wifi/wifi_manager.c"
         "channels/telegram/telegram_bot.c"
@@ -11,6 +16,7 @@ idf_component_register(
         "memory/memory_store.c"
         "memory/session_mgr.c"
         "gateway/ws_server.c"
+        "gateway/ws_client.c"
         "cli/serial_cli.c"
         "proxy/http_proxy.c"
         "cron/cron_service.c"
@@ -20,11 +26,15 @@ idf_component_register(
         "tools/tool_web_search.c"
         "tools/tool_get_time.c"
         "tools/tool_files.c"
+        "tools/tool_chassis.c"
+        "tools/chassis_driver.c"
         "skills/skill_loader.c"
+        "ui/config_screen.c"
+        "ui/message_display.c"
     INCLUDE_DIRS
         "."
     REQUIRES
         nvs_flash esp_wifi esp_netif esp_http_client esp_http_server
         esp_https_ota esp_event json spiffs console vfs app_update esp-tls
-        esp_timer esp_websocket_client
+        driver esp_timer esp_lcd
 )
